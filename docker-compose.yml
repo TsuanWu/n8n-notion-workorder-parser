@@ -1,0 +1,34 @@
+services:
+  n8n:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: jetsea-dispatch-n8n:local
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5678:5678"
+    environment:
+      - TZ=Asia/Taipei
+      - GENERIC_TIMEZONE=Asia/Taipei
+      - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
+      - N8N_DEFAULT_BINARY_DATA_MODE=filesystem
+      # Keep binary PDFs available across restarts for a short retry window,
+      # then prune the associated execution data automatically.
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=24
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+  pdf-extractor:
+    build:
+      context: ./pdf-extractor
+    restart: unless-stopped
+    expose:
+      - "8000"
+    volumes:
+      - ./personnel-map.csv:/app/personnel-map.csv:ro
+
+volumes:
+  n8n_data:
+    external: true

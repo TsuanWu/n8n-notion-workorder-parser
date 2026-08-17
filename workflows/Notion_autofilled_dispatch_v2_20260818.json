@@ -1,0 +1,1014 @@
+{
+  "name": "Notion_autofilled_dispatch_v2",
+  "nodes": [
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "38f64f79-a509-80df-bbf0-c4a33c6dc97c",
+          "mode": "list",
+          "cachedResultName": "派工與成果回報資料庫",
+          "cachedResultUrl": "https://app.notion.com/p/38f64f79a50980dfbbf0c4a33c6dc97c"
+        },
+        "limit": 1,
+        "filterType": "json",
+        "filterJson": "{\"and\":[{\"property\":\"Status\",\"status\":{\"equals\":\"尚未辨識\"}},{\"property\":\"派工單\",\"files\":{\"is_empty\":true}}]}",
+        "options": {
+          "sort": {
+            "sortValue": [
+              {
+                "timestamp": true,
+                "key": "created_time",
+                "direction": "ascending"
+              }
+            ]
+          }
+        }
+      },
+      "id": "16dee066-64a4-46ae-8ed2-84f6b69ba188",
+      "name": "取得頁面內 PDF 候選",
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        1952,
+        1776
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b189d005-4398-466e-bc45-43b191c99939",
+              "leftValue": "={{ $json.id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "ac571e25-45e3-4dbf-b167-b432f8154583",
+      "name": "是否存在補救候選",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2176,
+        1776
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.notion.com/v1/blocks/{{ $('取得頁面內 PDF 候選').item.json.id }}/children?page_size=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "options": {}
+      },
+      "id": "4fd77059-57d6-416c-a88e-04d95a9c5de8",
+      "name": "讀取候選頁面內容",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2400,
+        1872
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const page = $('取得頁面內 PDF 候選').item.json;\nconst blocks = $input.first().json.results ?? [];\nconst isFile = (block) => block.type === 'pdf' || block.type === 'file';\nconst isEmptyParagraph = (block) => block.type === 'paragraph' && !(block.paragraph?.rich_text ?? []).some(item => (item.plain_text ?? item.text?.content ?? '').trim());\nconst meaningful = blocks.filter(block => !isEmptyParagraph(block));\nconst files = meaningful.filter(isFile);\nconst candidate = files[0];\nconst fileInfo = candidate?.[candidate?.type];\nconst source = fileInfo?.file ?? fileInfo?.external;\nconst title = (page.properties?.Name?.title ?? []).map(item => item.plain_text ?? item.text?.content ?? '').join('').trim() || '派工單';\nconst safeName = title.replace(/[\\\\/:*?\"<>|]/g, '_');\nconst isPdf = candidate?.type === 'pdf' || /\\.pdf(?:$|[?#])/i.test(source?.url ?? '') || /pdf/i.test(fileInfo?.name ?? '');\nreturn [{ json: {\n  page_id: page.id ?? null,\n  source_block_id: candidate?.id ?? null,\n  pdf_url: source?.url ?? null,\n  file_name: /\\.pdf$/i.test(fileInfo?.name ?? '') ? fileInfo.name : safeName + '.pdf',\n  should_recover: meaningful.length === 1 && files.length === 1 && Boolean(source?.url) && isPdf,\n} }];"
+      },
+      "id": "5cb3bf91-7a99-49f4-9db7-bedacf0f3083",
+      "name": "判斷頁面是否只有一份 PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2624,
+        1872
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "1b4afecd-375f-46b5-8fe2-55363e1f6353",
+              "leftValue": "={{ $json.should_recover }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b36603ed-173c-4a48-8f68-11913367d2ab",
+      "name": "是否可補救單一 PDF",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2848,
+        1872
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.pdf_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "pdf"
+            }
+          }
+        }
+      },
+      "id": "314f60e5-ca48-4bcb-b835-70274551efd4",
+      "name": "下載頁面內 PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3104,
+        1840
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/file_uploads",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ mode: \"single_part\", filename: $('判斷頁面是否只有一份 PDF').item.json.file_name, content_type: \"application/pdf\" }) }}",
+        "options": {}
+      },
+      "id": "50f74dbe-ced2-4b01-9cf0-62d24a376a35",
+      "name": "建立 Notion 檔案上傳",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3328,
+        1920
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.notion.com/v1/file_uploads/{{ $('建立 Notion 檔案上傳').item.json.id }}/send",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "pdf"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7a1eeb47-05ca-4ff2-8513-3d94a532cfa7",
+      "name": "上傳 PDF 至 Notion",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3808,
+        1920
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $('判斷頁面是否只有一份 PDF').item.json.page_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ properties: { \"派工單\": { files: [{ name: $('判斷頁面是否只有一份 PDF').item.json.file_name, type: \"file_upload\", file_upload: { id: $('建立 Notion 檔案上傳').item.json.id } }] } } }) }}",
+        "options": {}
+      },
+      "id": "757ee248-7627-46a2-b88e-9ea604ce3353",
+      "name": "寫入派工單 Files Property",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4096,
+        1920
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.notion.com/v1/pages/{{ $('判斷頁面是否只有一份 PDF').item.json.page_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "options": {}
+      },
+      "id": "5ff492eb-7a98-46a7-b4bb-606510f3d466",
+      "name": "驗證派工單 Files Property",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4320,
+        1920
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f8b4ec62-94f9-4242-9a86-0405944f32a6",
+              "leftValue": "={{ ($json.properties?.[\"派工單\"]?.files ?? []).length > 0 }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c89b0614-63d3-4cad-b87a-17f062d8a1ac",
+      "name": "是否已寫入派工單檔案",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4544,
+        1920
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $('判斷頁面是否只有一份 PDF').item.json.source_block_id }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ archived: true }) }}",
+        "options": {}
+      },
+      "id": "cfa4481b-0984-474b-a1bf-4da38627a2fc",
+      "name": "刪除頁面內原始 PDF",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4768,
+        1920
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://api.notion.com/v1/blocks/{{ $('解析 AI 判讀結果1').item.json.page_id }}/children?page_size=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4544,
+        1616
+      ],
+      "id": "25dff518-28b9-4d8e-b514-feec6e176d57",
+      "name": "讀取 Notion 頁面內容",
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('解析 AI 判讀結果1').item.json;\nconst results = $input.first().json.results ?? [];\nconst textOf = (block) => {\n  const data = block?.[block.type] ?? {};\n  const rich = data.rich_text ?? data.text ?? [];\n  return Array.isArray(rich) ? rich.map(item => item.plain_text ?? item.text?.content ?? '').join('') : '';\n};\nconst heading = results.find(block => String(textOf(block)).replace(/\\s/g, '').replace(/：/g, ':') === '工項:');\nconst taskBlocks = (Array.isArray(source.tasks) ? source.tasks : [])\n  .filter(task => typeof task === 'string' && task.trim())\n  .map(task => ({ object: 'block', type: 'to_do', to_do: { rich_text: [{ type: 'text', text: { content: task.trim() } }], checked: false } }));\nconst text = (content) => ({ type: 'text', text: { content } });\nconst children = heading\n  ? taskBlocks\n  : [\n      { object: 'block', type: 'heading_2', heading_2: { rich_text: [text('工項：')] } },\n      ...taskBlocks,\n      { object: 'block', type: 'divider', divider: {} },\n      { object: 'block', type: 'heading_2', heading_2: { rich_text: [text('成果回報：')] } },\n      { object: 'block', type: 'paragraph', paragraph: { rich_text: [] } },\n      { object: 'block', type: 'divider', divider: {} },\n      { object: 'block', type: 'heading_2', heading_2: { rich_text: [text('回報文件：')] } },\n      { object: 'block', type: 'paragraph', paragraph: { rich_text: [] } },\n    ];\nconst requestBody = heading\n  ? { children, position: { type: 'after_block', after_block: { id: heading.id } } }\n  : { children };\nreturn [{ json: { page_id: source.page_id, request_body: JSON.stringify(requestBody) } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4768,
+        1616
+      ],
+      "id": "fa263271-08fc-4dcf-a008-6f0e6aaa02fb",
+      "name": "組裝工項區塊"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.page_id }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "specifyHeaders": "json",
+        "jsonHeaders": "={\"Notion-Version\":\"2026-03-11\"}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.request_body }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4992,
+        1616
+      ],
+      "id": "9b4e565f-8aa2-4851-9095-959978410867",
+      "name": "寫入 Notion 工項",
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        1280,
+        2112
+      ],
+      "id": "66466ce1-774f-4a6d-ac29-123f0985347c",
+      "name": "每小時排程1"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "getAll",
+        "databaseId": {
+          "__rl": true,
+          "value": "38f64f79-a509-80df-bbf0-c4a33c6dc97c",
+          "mode": "list",
+          "cachedResultName": "派工與成果回報資料庫",
+          "cachedResultUrl": "https://app.notion.com/p/38f64f79a50980dfbbf0c4a33c6dc97c"
+        },
+        "limit": 1,
+        "filterType": "json",
+        "filterJson": "{\"and\":[{\"property\":\"Status\",\"status\":{\"equals\":\"尚未辨識\"}},{\"property\":\"派工單\",\"files\":{\"is_not_empty\":true}}]}",
+        "options": {
+          "sort": {
+            "sortValue": [
+              {
+                "timestamp": true,
+                "key": "created_time",
+                "direction": "ascending"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        3072,
+        1616
+      ],
+      "id": "27b354d8-5b70-41e7-8b33-00ad7f4b096a",
+      "name": "取得待辨識派工單1",
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=  {{ $json.property_派工單[0] }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "pdf"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3296,
+        1616
+      ],
+      "id": "4f131097-ccde-4ebc-9c67-1d1d798e5335",
+      "name": "下載派工單 PDF1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://pdf-extractor:8000/convert",
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3520,
+        1616
+      ],
+      "id": "094593e4-41cc-4a36-a300-54e6c6746889",
+      "name": "擷取 PDF 文字1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=你是「派工單資料擷取器」。根據下方 PDF 文字，僅輸出一個有效 JSON 物件；不要 Markdown、不要程式碼區塊、不要其他說明。\n\nJSON 欄位必須完全如下：\n{\n  \"title\": \"string 或 null\",\n  \"date_start\": \"YYYY-MM-DD 或 null\",\n  \"date_end\": \"YYYY-MM-DD 或 null\",\n  \"dispatch_type\": \"營業行為 | RD | FAE | 其他 | null\",\n  \"people_names\": [\"派工單內出現的中文姓名或別名\"],\n  \"tasks\": [\"可執行的工項，一項一行\"],\n  \"confidence\": 0,\n  \"review_reason\": \"字串；資料完整可信時為空字串\"\n}\n\n規則：\n- 只擷取明確出現在文件中的資料，禁止自行猜測。\n- people_names 只能擷取文件中「出勤人員清單」欄位的實際出勤人員；不可納入申請派工單的 PM、申請人、填單人、審核人、聯絡人或其他非出勤角色。若沒有明確的出勤人員清單，請回傳空陣列 []，不可猜測。\n- 日期一律轉成西元 YYYY-MM-DD；單日任務兩個日期填相同。\n- tasks 請將文件中的工作內容整理為 2 至 8 項可執行、簡潔的待辦事項；不確定的項目不要編造。沒有可可靠整理的工項則輸出空陣列。\n- confidence 是 0 至 100 的整數。下列任一情況，confidence 不得高於 79，且 review_reason 必須用簡短中文明確列出原因：\n  1. 日期、起訖時間或執行時間不明確、缺漏或互相矛盾。\n  2. 無法可靠整理出具體可執行的工項，或工項內容模糊、缺漏或互相矛盾。\n  3. 工項文字中出現的執行／負責人員（排除申請人、PM、填單人、審核人與聯絡人）未列在「出勤人員清單」中。\n  4. 出勤人員清單不明確，或其他重要欄位有缺漏、矛盾或難以判讀。\n- dispatch_type 依文件已勾選的選項判斷；無法確定則填 null。\n- title 優先取專案名稱，沒有才取任務主旨。\n\nPDF 文字：\n{{ $json.text }}",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        3744,
+        1504
+      ],
+      "id": "d00e1bf3-b882-4a4f-803f-6293836624fe",
+      "name": "Gemini 判讀派工單1"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        3824,
+        1728
+      ],
+      "id": "9d59af7c-c978-460a-8487-c25d6ee5ccc7",
+      "name": "Gemini 模型1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "TydngPKSlznVXfnm",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.first().json;\nconst raw = input.text ?? input.response ?? input.output ?? Object.values(input).find((value) => typeof value === 'string' && value.trim().startsWith('{'));\n\nif (!raw) { throw new Error('找不到 Gemini 的 JSON 回傳內容'); }\n\nlet extracted;\ntry { extracted = JSON.parse(String(raw).trim()); }\ncatch { throw new Error('Gemini 回傳內容不是有效 JSON：' + raw); }\n\nconst page = $('取得待辨識派工單1').item.json;\n\nreturn [{\n  json: {\n    ...extracted,\n    page_id: page.id ?? null,\n    raw_ai_response: String(raw).trim(),\n  },\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4096,
+        1616
+      ],
+      "id": "f501883a-7662-4df1-a56a-9abf100dcda9",
+      "name": "解析 AI 判讀結果1"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://pdf-extractor:8000/map-personnel",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"people_names\": {{ JSON.stringify($json.people_names) }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4320,
+        1616
+      ],
+      "id": "3e66eb9d-3701-452d-8d07-49617f4c3a48",
+      "name": "人員名稱對照1"
+    },
+    {
+      "parameters": {
+        "resource": "databasePage",
+        "operation": "update",
+        "pageId": {
+          "__rl": true,
+          "value": "={{ $('解析 AI 判讀結果1').item.json.page_id }}",
+          "mode": "id"
+        },
+        "propertiesUi": {
+          "propertyValues": [
+            {
+              "key": "Status|status",
+              "statusValue": "={{ $('解析 AI 判讀結果1').item.json.confidence >= 80 && $('人員名稱對照1').item.json.all_matched ? 'Not started' : '內容待確認' }}"
+            },
+            {
+              "key": "Person|people",
+              "peopleValue": "={{ $('人員名稱對照1').item.json.matched.map(person => person.notion_user_id).filter(Boolean) }}"
+            },
+            {
+              "key": "Date|date",
+              "includeTime": false,
+              "date": "={{ $('解析 AI 判讀結果1').item.json.date_start }}"
+            },
+            {
+              "key": "Name|title",
+              "title": "={{ $('解析 AI 判讀結果1').item.json.title }}"
+            },
+            {
+              "key": "派遣類型|select",
+              "selectValue": "={{ $('解析 AI 判讀結果1').item.json.dispatch_type }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.notion",
+      "typeVersion": 2.2,
+      "position": [
+        5008,
+        1984
+      ],
+      "id": "2c0aebe6-1d06-4545-9aa9-e05321d09a97",
+      "name": "回填派工單欄位1",
+      "credentials": {
+        "notionApi": {
+          "id": "FRgZxljAOlBqzpY6",
+          "name": "Notion account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { run: 1 } }, { json: { run: 2 } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        2112
+      ],
+      "id": "45775d51-2306-4545-813f-bae18d4db835",
+      "name": "建立兩次迭代1"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1728,
+        2112
+      ],
+      "id": "bb9fbec6-59e6-4e21-88bf-242daed49253",
+      "name": "最多處理兩筆1"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        3536,
+        1872
+      ],
+      "id": "daee9993-0ed6-45c4-bcf8-f488deebacc3",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "取得頁面內 PDF 候選": {
+      "main": [
+        [
+          {
+            "node": "是否存在補救候選",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "是否存在補救候選": {
+      "main": [
+        [
+          {
+            "node": "讀取候選頁面內容",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "取得待辨識派工單1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取候選頁面內容": {
+      "main": [
+        [
+          {
+            "node": "判斷頁面是否只有一份 PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "判斷頁面是否只有一份 PDF": {
+      "main": [
+        [
+          {
+            "node": "是否可補救單一 PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "是否可補救單一 PDF": {
+      "main": [
+        [
+          {
+            "node": "下載頁面內 PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "取得待辨識派工單1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "下載頁面內 PDF": {
+      "main": [
+        [
+          {
+            "node": "建立 Notion 檔案上傳",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "建立 Notion 檔案上傳": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "上傳 PDF 至 Notion": {
+      "main": [
+        [
+          {
+            "node": "寫入派工單 Files Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "寫入派工單 Files Property": {
+      "main": [
+        [
+          {
+            "node": "驗證派工單 Files Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "驗證派工單 Files Property": {
+      "main": [
+        [
+          {
+            "node": "是否已寫入派工單檔案",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "是否已寫入派工單檔案": {
+      "main": [
+        [
+          {
+            "node": "刪除頁面內原始 PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "刪除頁面內原始 PDF": {
+      "main": [
+        [
+          {
+            "node": "最多處理兩筆1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "讀取 Notion 頁面內容": {
+      "main": [
+        [
+          {
+            "node": "組裝工項區塊",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "組裝工項區塊": {
+      "main": [
+        [
+          {
+            "node": "寫入 Notion 工項",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "寫入 Notion 工項": {
+      "main": [
+        [
+          {
+            "node": "回填派工單欄位1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "每小時排程1": {
+      "main": [
+        [
+          {
+            "node": "建立兩次迭代1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "取得待辨識派工單1": {
+      "main": [
+        [
+          {
+            "node": "下載派工單 PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "下載派工單 PDF1": {
+      "main": [
+        [
+          {
+            "node": "擷取 PDF 文字1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "擷取 PDF 文字1": {
+      "main": [
+        [
+          {
+            "node": "Gemini 判讀派工單1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 判讀派工單1": {
+      "main": [
+        [
+          {
+            "node": "解析 AI 判讀結果1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini 模型1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gemini 判讀派工單1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析 AI 判讀結果1": {
+      "main": [
+        [
+          {
+            "node": "人員名稱對照1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "人員名稱對照1": {
+      "main": [
+        [
+          {
+            "node": "讀取 Notion 頁面內容",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "回填派工單欄位1": {
+      "main": [
+        [
+          {
+            "node": "最多處理兩筆1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "建立兩次迭代1": {
+      "main": [
+        [
+          {
+            "node": "最多處理兩筆1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "最多處理兩筆1": {
+      "main": [
+        [],
+        [
+          {
+            "node": "取得頁面內 PDF 候選",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "上傳 PDF 至 Notion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "c8456533-532f-4eec-8495-afaf63a42aee",
+  "meta": {
+    "instanceId": "ab63cca7c0b570f1c6f589e19ce3f785d91b64f997d6620db910fad2534c1dd9"
+  },
+  "nodeGroups": [],
+  "id": "lMH1FmCMZYmAlqoy",
+  "tags": []
+}
