@@ -1,10 +1,27 @@
+# Secrets and local runtime data
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+*credentials*.json
+personnel-map.csv
 __pycache__/
 *.py[cod]
 .pytest_cache/
-n8n-export-with-credentials.json
-
-# Local personnel directory: contains names and contact details.
-personnel-map.csv
+backups/
+local-only/
+n8n_data/
+binaryData/
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.vhdx
+# Export files are local by default; publish only reviewed templates.
+workflows/*.json
+!workflows/*.template.json
