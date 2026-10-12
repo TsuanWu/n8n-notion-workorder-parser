@@ -1,0 +1,19 @@
+# Only the PDF service; does not create or replace an n8n container/volume.
+services:
+  pdf-extractor:
+    build:
+      context: ./pdf-extractor
+    image: workorder-pdf-extractor:1006
+    restart: unless-stopped
+    volumes:
+      - type: bind
+        source: ${PERSONNEL_MAP_PATH:?Set PERSONNEL_MAP_PATH to the existing personnel CSV}
+        target: /app/personnel-map.csv
+        read_only: true
+        bind:
+          create_host_path: false
+    networks:
+      - parser
+networks:
+  parser:
+    name: n8n-pdf-service-net

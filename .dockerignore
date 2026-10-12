@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+personnel-map.csv
+backups
+local-only
+n8n_data
+binaryData
+*.sqlite*
+*.db*
+*.zip
+*.tar*
+*.tgz
+*.vhdx
+*credentials*.json
